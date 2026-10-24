@@ -1,0 +1,210 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  STAFF
+  KITCHEN
+  ADMIN
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
+}
+
+enum TableStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  CLEANING
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  password     String
+  phone        String?
+  role         Role          @default(CUSTOMER)
+  orders       Order[]
+  reservations Reservation[]
+  cartItems    CartItem[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Category {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  slug        String     @unique
+  description String?
+  image       String?
+  menuItems   MenuItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model MenuItem {
+  id           String      @id @default(uuid())
+  name         String
+  description  String
+  price        Float
+  categoryId   String
+  category     Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  ingredients  String?
+  imageUrl     String
+  isVegetarian Boolean     @default(false)
+  isAvailable  Boolean     @default(true)
+  rating       Float       @default(4.5)
+  reviewsCount Int         @default(15)
+  prepTime     Int         @default(20) // estimated preparation time in minutes
+  orderItems   OrderItem[]
+  cartItems    CartItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model RestaurantTable {
+  id           String        @id @default(uuid())
+  tableNumber  Int           @unique
+  capacity     Int
+  location     String        @default("Indoor") // Indoor, Patio, Rooftop, VIP
+  status       TableStatus   @default(AVAILABLE)
+  reservations Reservation[]
+  orders       Order[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Reservation {
+  id              String            @id @default(uuid())
+  customerId      String?
+  customer        User?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  tableId         String?
+  table           RestaurantTable?  @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  guestsCount     Int
+  reservationDate DateTime
+  reservationTime String            // e.g. "19:30"
+  specialRequest  String?
+  status          ReservationStatus @default(PENDING)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Order {
+  id              String           @id @default(uuid())
+  orderNumber     String           @unique
+  customerId      String?
+  customer        User?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  orderType       OrderType        @default(DINE_IN)
+  tableId         String?
+  table           RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  deliveryAddress String?
+  instructions    String?
+  subtotal        Float
+  tax             Float
+  deliveryFee     Float            @default(0)
+  totalAmount     Float
+  status          OrderStatus      @default(PLACED)
+  items           OrderItem[]
+  payment         Payment?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model OrderItem {
+  id                  String    @id @default(uuid())
+  orderId             String
+  order               Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId          String?
+  menuItem            MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  name                String
+  price               Float
+  quantity            Int
+  specialInstructions String?
+  createdAt           DateTime  @default(now())
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String        @unique
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentMethod PaymentMethod @default(ONLINE)
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model CartItem {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItemId          String
+  menuItem            MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  quantity            Int      @default(1)
+  specialInstructions String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, menuItemId])
+}
+
+model RestaurantSetting {
+  id           String   @id @default(uuid())
+  name         String   @default("DineDesk Luxury Bistro")
+  tagline      String   @default("Culinary Excellence & Fine Dining Experience")
+  email        String   @default("contact@dinedesk.com")
+  phone        String   @default("+91 98765 43210")
+  address      String   @default("42 Gourmet Avenue, Culinary District, Metropolis")
+  taxRate      Float    @default(5.0)
+  deliveryFee  Float    @default(40.0)
+  openingHours String   @default("Mon-Sun: 11:00 AM - 11:00 PM")
+  updatedAt    DateTime @updatedAt
+}

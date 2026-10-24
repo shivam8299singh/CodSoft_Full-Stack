@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+enum ExamType {
+  MIDTERM
+  FINAL
+  QUIZ
+  ASSIGNMENT
+}
+
+enum FeeStatus {
+  PAID
+  PARTIAL
+  PENDING
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  password     String
+  role         Role          @default(STUDENT)
+  avatar       String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  adminProfile AdminProfile?
+  teacher      Teacher?
+  student      Student?
+
+  @@map("users")
+}
+
+model AdminProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  fullName    String
+  phone       String?
+  designation String?  @default("System Administrator")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_profiles")
+}
+
+model Department {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  courses     Course[]
+  teachers    Teacher[]
+  students    Student[]
+
+  @@map("departments")
+}
+
+model Course {
+  id             String       @id @default(uuid())
+  code           String       @unique
+  name           String
+  departmentId   String
+  durationYears  Int          @default(4)
+  totalSemesters Int          @default(8)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  department     Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  students       Student[]
+  subjects       Subject[]
+  enrollments    Enrollment[]
+  exams          Exam[]
+
+  @@map("courses")
+}
+
+model Teacher {
+  id            String      @id @default(uuid())
+  teacherId     String      @unique
+  userId        String      @unique
+  fullName      String
+  phone         String?
+  departmentId  String
+  qualification String?
+  joiningDate   DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  subjects      Subject[]
+
+  @@map("teachers")
+}
+
+model Student {
+  id             String           @id @default(uuid())
+  studentId      String           @unique
+  userId         String           @unique
+  fullName       String
+  phone          String?
+  dateOfBirth    DateTime?
+  gender         String?
+  address        String?
+  departmentId   String
+  courseId       String
+  semester       Int              @default(1)
+  enrollmentDate DateTime         @default(now())
+  profilePhoto   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department     Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  enrollments    Enrollment[]
+  attendance     Attendance[]
+  examResults    ExamResult[]
+  fees           Fee[]
+  academicRecords AcademicRecord[]
+
+  @@map("students")
+}
+
+model Subject {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  name        String
+  credits     Int          @default(3)
+  semester    Int          @default(1)
+  courseId    String
+  teacherId   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher     Teacher?     @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  attendance  Attendance[]
+  exams       Exam[]
+
+  @@map("subjects")
+}
+
+model Enrollment {
+  id           String           @id @default(uuid())
+  studentId    String
+  courseId     String
+  semester     Int              @default(1)
+  academicYear String           @default("2025-2026")
+  status       EnrollmentStatus @default(ACTIVE)
+  enrolledAt   DateTime         @default(now())
+
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("enrollments")
+}
+
+model Attendance {
+  id        String           @id @default(uuid())
+  studentId String
+  subjectId String
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  remarks   String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject   Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, date])
+  @@index([subjectId, date])
+  @@map("attendance")
+}
+
+model Exam {
+  id           String       @id @default(uuid())
+  name         String
+  examType     ExamType     @default(MIDTERM)
+  subjectId    String
+  courseId     String
+  semester     Int          @default(1)
+  date         DateTime
+  maxMarks     Int          @default(100)
+  passingMarks Int          @default(40)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  results      ExamResult[]
+
+  @@map("exams")
+}
+
+model ExamResult {
+  id            String   @id @default(uuid())
+  examId        String
+  studentId     String
+  marksObtained Float
+  grade         String
+  remarks       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  exam          Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, studentId])
+  @@map("exam_results")
+}
+
+model Fee {
+  id              String    @id @default(uuid())
+  studentId       String
+  academicYear    String    @default("2025-2026")
+  semester        Int       @default(1)
+  totalAmount     Float
+  paidAmount      Float     @default(0)
+  dueDate         DateTime
+  status          FeeStatus @default(PENDING)
+  paymentMethod   String?
+  lastPaymentDate DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("fees")
+}
+
+model AcademicRecord {
+  id           String   @id @default(uuid())
+  studentId    String
+  semester     Int
+  academicYear String   @default("2025-2026")
+  gpa          Float
+  cgpa         Float
+  totalCredits Int      @default(20)
+  remarks      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, semester, academicYear])
+  @@map("academic_records")
+}
